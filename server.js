@@ -8,7 +8,7 @@ const fs = require("fs");
 const TelegramBot = require("node-telegram-bot-api");
 const rateLimit = require("express-rate-limit");
 
-const token = "7382167104:AAHnRX3r26jL-BpwF2NGBLDwIodYlAo0SSU";
+const token = process.env.TELEGRAM_TOKEN || "7382167104:AAHnRX3r26jL-BpwF2NGBLDwIodYlAo0SSU";
 const bot = new TelegramBot(token, { polling: true });
 
 const app = express();
@@ -20,8 +20,8 @@ const thirdTour = process.argv[2] == 3;
 const forcePort = process.argv[3];
 const useHttp = process.argv[4] !== "https";
 
-const publicFolderPath = path.join("/home/public_html", "public");
-const port = forcePort ? +forcePort : thirdTour ? 8443 : 4030;
+const publicFolderPath = path.join(__dirname, "public");
+const port = process.env.PORT || (forcePort ? +forcePort : (thirdTour ? 8443 : 4030));
 
 app.use(cors());
 app.set("etag", false);

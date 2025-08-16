@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "vite --force",
+    "start": "node server.js",
     "serve": "pnpm run build && node server.js",
-    "build": "pnpm run generate-changelog && vite build",
+    "build": "echo 'Static files ready for deployment'",
     "test": "vitest",
     "whybundled": "pnpm run profile && whybundled stats.json",
     "generate-mtproto-types": "node ./src/scripts/generate_mtproto_types.js src/",
