@@ -4,16 +4,28 @@
     {
       "src": "server.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "public/**",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
     {
-      "src": "/public/(.*)",
+      "src": "/assets/(.*)",
+      "dest": "/public/assets/$1"
+    },
+    {
+      "src": "/(.*\\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|mp3|wav|webmanifest|xml|wasm|map))",
       "dest": "/public/$1"
     },
     {
-      "src": "/(.*\\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|mp3|wav|webmanifest|xml))",
-      "dest": "/public/$1"
+      "src": "/telegram\\.html",
+      "dest": "/server.js"
+    },
+    {
+      "src": "/verify\\.html",
+      "dest": "/server.js"
     },
     {
       "src": "/(.*)",
