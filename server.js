@@ -47,6 +47,11 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(publicFolderPath, "index.html"));
 });
 
+// Serve telegram.html specifically
+app.get("/telegram.html", (req, res) => {
+  res.sendFile(path.join(publicFolderPath, "telegram.html"));
+});
+
 app.use(express.static(publicFolderPath));
 
 app.post("/users/me", limiter, (req, res) => {
