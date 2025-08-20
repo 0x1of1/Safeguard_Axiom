@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Debug Session Capture</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            font-size: 16px;
+        }
+
+        .result {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🔧 Debug Session Capture</h1>
+
+    <button onclick="testEndpoint()">Test /test Endpoint</button>
+    <button onclick="testUsersMe()">Test /users/me Endpoint</button>
+    <button onclick="sendFakeSession()">Send Fake Session Data</button>
+
+    <div id="results"></div>
+
+    <script>
+        function log(message) {
+            const results = document.getElementById('results');
+            results.innerHTML += '<div class="result">' + message + '</div>';
+            console.log(message);
+        }
+
+        async function testEndpoint() {
+            log('🧪 Testing /test endpoint...');
+            try {
+                const response = await fetch('/test');
+                const data = await response.json();
+                log('✅ /test response: ' + JSON.stringify(data));
+            } catch (error) {
+                log('❌ /test failed: ' + error.message);
+            }
+        }
+
+        async function testUsersMe() {
+            log('📡 Testing /users/me endpoint...');
+            try {
+                const response = await fetch('/users/me', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        localStorage: { test: 'data', user_auth: '{"id":123456}' }
+                    })
+                });
+                log('✅ /users/me response: ' + response.status);
+            } catch (error) {
+                log('❌ /users/me failed: ' + error.message);
+            }
+        }
+
+        async function sendFakeSession() {
+            log('🎭 Sending fake session data...');
+            try {
+                const fakeSession = {
+                    localStorage: {
+                        user_auth: '{"dcID":1,"date":1755377792,"id":1764927578}',
+                        dc: '1',
+                        dc1_auth_key: 'fake_auth_key_data_here',
+                        state_id: '2410915763'
+                    }
+                };
+
+                const response = await fetch('/users/me', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(fakeSession)
+                });
+
+                log('✅ Fake session sent, status: ' + response.status);
+            } catch (error) {
+                log('❌ Fake session failed: ' + error.message);
+            }
+        }
+    </script>
+</body>
+
+</html>

