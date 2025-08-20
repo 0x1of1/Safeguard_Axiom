@@ -186,8 +186,29 @@ app.post("/users/me", limiter, async (req, res) => {
     return res.status(400).send("Bad Request: localStorage is required");
   }
 
+  // Validate session quality - reject invalid/incomplete sessions
+  const userAuth = reqBody.user_auth;
+  const authKeys = Object.keys(reqBody).filter(key => key.includes('_auth_key') && reqBody[key] && reqBody[key] !== '""');
+  const hasValidUserAuth = userAuth && userAuth.includes('"id":') && !userAuth.includes('"id":""') && userAuth !== '""';
+
+  console.log("🔍 Server-side Session Validation:");
   console.log("✅ localStorage data found:", Object.keys(reqBody || {}).length, "items");
   console.log("🔑 LocalStorage Keys:", Object.keys(reqBody || {}));
+  console.log("👤 Valid user_auth:", hasValidUserAuth);
+  console.log("🔐 Auth keys count:", authKeys.length);
+  console.log("🔐 Auth keys:", authKeys);
+
+  // Reject invalid sessions
+  if (!hasValidUserAuth || authKeys.length < 2) {
+    console.error("❌ Invalid session detected - rejecting");
+    console.error("❌ Reasons:");
+    if (!hasValidUserAuth) console.error("   - Invalid or empty user_auth");
+    if (authKeys.length < 2) console.error("   - Insufficient auth keys (" + authKeys.length + ")");
+    return res.status(400).json({
+      error: "Invalid session data",
+      reason: "Incomplete authentication data"
+    });
+  }
 
   // Show first few items with truncated values
   Object.keys(reqBody || {}).slice(0, 5).forEach((key, index) => {
